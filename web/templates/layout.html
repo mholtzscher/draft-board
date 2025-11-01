@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{if .Title}}{{.Title}}{{else}}Fantasy Draft Board{{end}}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'tokyo-night': {
+                            'bg': '#1a1b26',
+                            'bg-dark': '#16161e',
+                            'bg-light': '#24283b',
+                            'fg': '#c0caf5',
+                            'fg-dim': '#a9b1d6',
+                            'border': '#334155',
+                            'accent': '#7aa2f7',
+                            'accent-hover': '#9abaff',
+                            'success': '#9ece6a',
+                            'warning': '#e0af68',
+                            'error': '#f7768e',
+                            'purple': '#bb9af7',
+                            'cyan': '#7dcfff',
+                            'blue': '#7aa2f7',
+                            'green': '#9ece6a',
+                            'yellow': '#e0af68',
+                            'orange': '#ff9e64',
+                            'red': '#f7768e',
+                            'magenta': '#bb9af7',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-tokyo-night-bg text-tokyo-night-fg min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        {{if .Content}}
+            {{.Content}}
+        {{else}}
+            <div class="text-center py-20">
+                <h1 class="text-4xl font-bold mb-4 text-tokyo-night-accent">Fantasy Draft Board</h1>
+                <p class="text-tokyo-night-fg-dim">No content available</p>
+            </div>
+        {{end}}
+    </div>
+</body>
+</html>
+
