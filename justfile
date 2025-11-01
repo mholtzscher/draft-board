@@ -140,3 +140,50 @@ seed-sample:
     @echo "Seeding with sample player data..."
     go run ./cmd/seed/main.go -file data/sample-players.csv
 
+# Build Docker image with Ko
+ko-build:
+    @echo "Building Docker image with Ko..."
+    @if command -v ko > /dev/null; then \
+        ko build --local github.com/vibes/draft-board/cmd/server; \
+    else \
+        echo "Ko not installed. Install with: go install github.com/google/ko@latest"; \
+    fi
+
+# Build and publish Docker image with Ko
+ko-publish registry:
+    @echo "Building and publishing Docker image with Ko..."
+    @if command -v ko > /dev/null; then \
+        ko publish --push=true {{registry}}/github.com/vibes/draft-board/cmd/server; \
+    else \
+        echo "Ko not installed. Install with: go install github.com/google/ko@latest"; \
+    fi
+
+# Build Docker image with Ko (local only, no push)
+# Note: This uses Docker for cross-compilation (required for CGO)
+ko-build-local:
+    @echo "Building Docker image with Ko (local only)..."
+    @if command -v ko > /dev/null && command -v docker > /dev/null; then \
+        KO_DOCKER_REPO=ko.local ko build --push=false github.com/vibes/draft-board/cmd/server; \
+    else \
+        if ! command -v ko > /dev/null; then \
+            echo "Ko not installed. Install with: go install github.com/google/ko@latest"; \
+        fi; \
+        if ! command -v docker > /dev/null; then \
+            echo "Docker not installed or not running. Docker is required for CGO cross-compilation."; \
+        fi; \
+    fi
+
+# Run container built with Ko (requires docker)
+ko-run:
+    @echo "Running container built with Ko..."
+    @if command -v ko > /dev/null; then \
+        IMAGE=$$(ko build --local github.com/vibes/draft-board/cmd/server 2>/dev/null) && \
+        docker run --rm -p 8080:8080 \
+            -e PORT=8080 \
+            -e DB_PATH=/app/data/draft-board.db \
+            -v draft-board-data:/app/data \
+            $$IMAGE; \
+    else \
+        echo "Ko not installed. Install with: go install github.com/google/ko@latest"; \
+    fi
+

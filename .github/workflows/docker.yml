@@ -1,4 +1,4 @@
-name: Build and Publish Docker Image
+name: Build and Publish Container Image
 
 on:
   push:
@@ -29,6 +29,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Install Ko
+        uses: ko-build/setup-ko@v0.7
+        with:
+          version: '0.15.0'
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -39,32 +49,41 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Set Ko Docker repository
+        run: |
+          echo "KO_DOCKER_REPO=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_ENV
 
-      - name: Build and push Docker image
+      - name: Build and publish image with Ko
         id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
-          outputs: type=registry
+        run: |
+          # Determine tags based on event type
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # For PRs, don't push but still build
+            IMAGE=$(ko publish --push=false \
+              --base-import-paths \
+              github.com/vibes/draft-board/cmd/server)
+            echo "Built image (not pushed): $IMAGE"
+          elif [[ "${{ github.ref }}" =~ ^refs/tags/ ]]; then
+            # For tags, use version tags
+            TAG=${GITHUB_REF#refs/tags/}
+            IMAGE=$(ko publish --push=true \
+              --base-import-paths \
+              --tags=${TAG},latest \
+              github.com/vibes/draft-board/cmd/server)
+            echo "image=$IMAGE" >> $GITHUB_OUTPUT
+            echo "digest=${IMAGE##*@}" >> $GITHUB_OUTPUT
+          else
+            # For branch pushes, use branch name and SHA
+            BRANCH=${GITHUB_REF#refs/heads/}
+            SHA=${GITHUB_SHA::8}
+            IMAGE=$(ko publish --push=true \
+              --base-import-paths \
+              --tags=${BRANCH},${SHA} \
+              --tags=latest \
+              github.com/vibes/draft-board/cmd/server)
+            echo "image=$IMAGE" >> $GITHUB_OUTPUT
+            echo "digest=${IMAGE##*@}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v1

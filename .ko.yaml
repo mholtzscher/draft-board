@@ -1,0 +1,17 @@
+# Ko configuration for draft-board
+# Uses distroless/base which includes glibc (needed for CGO)
+# Note: For SQLite with CGO, ensure SQLite is statically linked or use a base image with SQLite libraries
+defaultBaseImage: gcr.io/distroless/base:nonroot
+builds:
+  - id: draft-board
+    main: ./cmd/server
+    ldflags:
+      - -s -w
+    env:
+      - CGO_ENABLED=1
+    flags:
+      - -trimpath
+    # Include static files and templates
+    dirs:
+      - web
+

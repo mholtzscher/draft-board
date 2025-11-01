@@ -2,9 +2,13 @@ version: '3.8'
 
 services:
   draft-board:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Use Ko-built image. For local development, build with:
+    # ko build --local github.com/vibes/draft-board/cmd/server
+    # Then set image to the output of that command, or use:
+    # just ko-build-local
+    # For production, use the image from your registry:
+    # image: ghcr.io/your-org/draft-board:latest
+    image: ko.local/github.com/vibes/draft-board/cmd/server:latest
     container_name: draft-board
     ports:
       - "8080:8080"
