@@ -144,13 +144,8 @@ func (h *Handler) NewDraft(w http.ResponseWriter, r *http.Request) {
 					</div>
 					<div>
 						<label class="block text-sm font-medium mb-2 text-tokyo-night-fg">Number of Teams</label>
-						<select name="num_teams" required 
+						<input type="number" name="num_teams" min="2" max="14" value="10" required 
 							class="w-full px-4 py-2 bg-tokyo-night-bg border border-tokyo-night-border rounded-lg text-tokyo-night-fg focus:outline-none focus:border-tokyo-night-accent">
-							<option value="8">8 Teams</option>
-							<option value="10" selected>10 Teams</option>
-							<option value="12">12 Teams</option>
-							<option value="14">14 Teams</option>
-						</select>
 					</div>
 					<div>
 						<label class="block text-sm font-medium mb-2 text-tokyo-night-fg">Scoring Format</label>
@@ -259,7 +254,7 @@ func (h *Handler) DraftSetup(w http.ResponseWriter, r *http.Request) {
 				<form method="POST" action="/draft/` + fmt.Sprintf("%d", id) + `/teams" class="space-y-4">
 					<div>
 						<label class="block text-sm font-medium mb-2 text-tokyo-night-fg">Team Name</label>
-						<input type="text" name="team_name" required maxlength="50" 
+						<input type="text" name="team_name" required maxlength="50" autofocus
 							class="w-full px-4 py-2 bg-tokyo-night-bg border border-tokyo-night-border rounded-lg text-tokyo-night-fg focus:outline-none focus:border-tokyo-night-accent">
 					</div>
 					<div>
@@ -854,7 +849,7 @@ func (h *Handler) GetAvailablePlayers(w http.ResponseWriter, r *http.Request) {
 		<div class="mb-6">
 			<form method="GET" action="/draft/` + fmt.Sprintf("%d", id) + `/players" id="filter-form">
 				<div class="mb-4">
-					<input type="text" name="search" placeholder="Search players..." value="` + search + `" 
+					<input type="text" name="search" placeholder="Search players..." value="` + search + `" autofocus
 						class="w-full px-4 py-2 bg-tokyo-night-bg-light border border-tokyo-night-border rounded-lg text-tokyo-night-fg focus:outline-none focus:border-tokyo-night-accent">
 				</div>
 				<div class="mb-4">

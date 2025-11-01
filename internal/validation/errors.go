@@ -3,7 +3,7 @@ package validation
 import "errors"
 
 var (
-	ErrInvalidLeagueSize    = errors.New("invalid league size. Must be 8, 10, 12, or 14")
+	ErrInvalidLeagueSize    = errors.New("invalid league size. Must be between 2 and 14 teams")
 	ErrInvalidScoringFormat = errors.New("invalid scoring format. Must be Standard, Half-PPR, or PPR")
 	ErrInvalidDraftType     = errors.New("invalid draft type. Must be Redraft or Dynasty")
 	ErrDraftNameRequired    = errors.New("draft name is required")

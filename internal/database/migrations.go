@@ -47,7 +47,7 @@ const createDraftsTable = `
 CREATE TABLE IF NOT EXISTS drafts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    num_teams INTEGER NOT NULL CHECK(num_teams IN (8, 10, 12, 14)),
+    num_teams INTEGER NOT NULL CHECK(num_teams BETWEEN 2 AND 14),
     scoring_format TEXT NOT NULL CHECK(scoring_format IN ('Standard', 'Half-PPR', 'PPR')),
     draft_type TEXT NOT NULL CHECK(draft_type IN ('Redraft', 'Dynasty')),
     qb_setting TEXT DEFAULT '1QB',

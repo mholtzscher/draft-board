@@ -6,8 +6,7 @@ func ValidateDraft(draft *models.Draft) error {
 	if draft.Name == "" {
 		return ErrDraftNameRequired
 	}
-	if draft.NumTeams != 8 && draft.NumTeams != 10 &&
-		draft.NumTeams != 12 && draft.NumTeams != 14 {
+	if draft.NumTeams < 2 || draft.NumTeams > 14 {
 		return ErrInvalidLeagueSize
 	}
 	validFormats := map[string]bool{"Standard": true, "Half-PPR": true, "PPR": true}
