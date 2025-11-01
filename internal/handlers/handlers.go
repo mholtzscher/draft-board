@@ -846,15 +846,22 @@ func (h *Handler) GetAvailablePlayers(w http.ResponseWriter, r *http.Request) {
 			<a href="/draft/` + fmt.Sprintf("%d", id) + `" class="text-tokyo-night-fg-dim hover:text-tokyo-night-accent mb-4 inline-block">← Back to Draft</a>
 			<h1 class="text-4xl font-bold mb-2 text-tokyo-night-accent">Available Players</h1>
 		</div>
+		<div id="players-page-content">
 		<div class="mb-6">
 			<form method="GET" action="/draft/` + fmt.Sprintf("%d", id) + `/players" id="filter-form">
 				<div class="mb-4">
 					<input type="text" name="search" placeholder="Search players..." value="` + search + `" autofocus
+						hx-get="/draft/` + fmt.Sprintf("%d", id) + `/players"
+						hx-trigger="keyup changed delay:300ms"
+						hx-target="#players-page-content"
+						hx-select="#players-page-content"
+						hx-push-url="true"
+						hx-include="[name='position'], [name='show_drafted']"
 						class="w-full px-4 py-2 bg-tokyo-night-bg-light border border-tokyo-night-border rounded-lg text-tokyo-night-fg focus:outline-none focus:border-tokyo-night-accent">
 				</div>
 				<div class="mb-4">
 					<label class="block text-sm font-medium mb-2 text-tokyo-night-fg">Filter by Position:</label>
-					<div class="flex flex-wrap gap-2">
+					<div id="position-filters" class="flex flex-wrap gap-2">
 	`)
 
 	allPositions := []string{"QB", "RB", "WR", "TE", "K", "D/ST"}
@@ -864,18 +871,18 @@ func (h *Handler) GetAvailablePlayers(w http.ResponseWriter, r *http.Request) {
 			checked = "checked"
 		}
 		content.WriteString(fmt.Sprintf(`
-			<label class="inline-flex items-center px-3 py-2 rounded-lg border cursor-pointer transition-colors %s">
+			<label class="position-filter-label inline-flex items-center px-3 py-2 rounded-lg border cursor-pointer transition-colors bg-tokyo-night-bg-light text-tokyo-night-fg border-tokyo-night-border hover:border-tokyo-night-accent">
 				<input type="checkbox" name="position" value="%s" %s 
-					onchange="document.getElementById('filter-form').submit()"
+					hx-get="/draft/` + fmt.Sprintf("%d", id) + `/players"
+					hx-trigger="change"
+					hx-target="#players-page-content"
+					hx-select="#players-page-content"
+					hx-push-url="true"
+					hx-include="[name='search'], [name='position'], [name='show_drafted']"
 					class="sr-only">
 				<span class="text-sm font-medium">%s</span>
 			</label>
-		`, func() string {
-			if selectedPositions[pos] {
-				return "bg-tokyo-night-accent text-white border-tokyo-night-accent"
-			}
-			return "bg-tokyo-night-bg-light text-tokyo-night-fg border-tokyo-night-border hover:border-tokyo-night-accent"
-		}(), pos, checked, pos))
+		`, pos, checked, pos))
 	}
 
 	content.WriteString(`
@@ -888,7 +895,12 @@ func (h *Handler) GetAvailablePlayers(w http.ResponseWriter, r *http.Request) {
 			return "checked"
 		}
 		return ""
-	}() + ` onchange="document.getElementById('filter-form').submit()" 
+	}() + ` hx-get="/draft/` + fmt.Sprintf("%d", id) + `/players"
+							hx-trigger="change"
+							hx-target="#players-page-content"
+							hx-select="#players-page-content"
+							hx-push-url="true"
+							hx-include="[name='search'], [name='position'], [name='show_drafted']"
 							class="w-4 h-4 text-tokyo-night-accent bg-tokyo-night-bg-light border-tokyo-night-border rounded focus:ring-tokyo-night-accent">
 						<span class="ml-2 text-sm text-tokyo-night-fg">Show drafted players</span>
 					</label>
@@ -898,7 +910,7 @@ func (h *Handler) GetAvailablePlayers(w http.ResponseWriter, r *http.Request) {
 				</button>
 			</form>
 		</div>
-		<div class="overflow-x-auto">
+		<div id="players-table-container" class="overflow-x-auto">
 			<table class="w-full border-collapse bg-tokyo-night-bg-light rounded-lg overflow-hidden">
 				<thead>
 					<tr class="bg-tokyo-night-bg-dark">
@@ -957,7 +969,7 @@ func (h *Handler) GetAvailablePlayers(w http.ResponseWriter, r *http.Request) {
 		content.WriteString(`</tr>`)
 	}
 
-	content.WriteString(`</tbody></table></div>`)
+	content.WriteString(`</tbody></table></div></div>`)
 	renderTemplate(w, content.String(), "Available Players")
 }
 

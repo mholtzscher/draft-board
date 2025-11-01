@@ -71,6 +71,18 @@ a:hover {
     color: var(--accent);
 }
 
+/* Position filter checkbox styles - highlight when checked */
+.position-filter-label:has(input[name="position"]:checked) {
+    background-color: #7aa2f7 !important;
+    color: white !important;
+    border-color: #7aa2f7 !important;
+}
+
+/* Ensure text color is white when checked */
+.position-filter-label:has(input[name="position"]:checked) span {
+    color: white !important;
+}
+
 /* Print styles */
 @media print {
     .no-print {
