@@ -621,8 +621,57 @@ func (h *Handler) GetDraftBoard(w http.ResponseWriter, r *http.Request) {
 	}
 	content.WriteString(`</div></div>`)
 
+	// SSE connection for real-time updates (only if draft is active)
+	if draft.IsActive() || draft.IsPaused() {
+		content.WriteString(fmt.Sprintf(`
+			<script>
+				(function() {
+					const draftId = %d;
+					const eventSource = new EventSource('/draft/' + draftId + '/stream');
+					
+					eventSource.addEventListener('pick-made', function(event) {
+						console.log('SSE: Pick made', event.data);
+						eventSource.close();
+						location.reload();
+					});
+					
+					eventSource.addEventListener('pick-undone', function(event) {
+						console.log('SSE: Pick undone', event.data);
+						eventSource.close();
+						location.reload();
+					});
+					
+					eventSource.addEventListener('draft-completed', function(event) {
+						console.log('SSE: Draft completed', event.data);
+						eventSource.close();
+						setTimeout(() => location.reload(), 1000);
+					});
+					
+					eventSource.addEventListener('connected', function(event) {
+						console.log('SSE: Connected to stream', event.data);
+					});
+					
+					eventSource.onerror = function(event) {
+						console.error('SSE: Connection error', event);
+						// Reconnect after 3 seconds
+						setTimeout(function() {
+							if (eventSource.readyState === EventSource.CLOSED) {
+								location.reload();
+							}
+						}, 3000);
+					};
+					
+					// Clean up on page unload
+					window.addEventListener('beforeunload', function() {
+						eventSource.close();
+					});
+				})();
+			</script>
+		`, id))
+	}
+
 	// Draft board grid
-	content.WriteString(`<div class="overflow-x-auto mb-8">`)
+	content.WriteString(`<div class="overflow-x-auto mb-8" id="draft-board">`)
 	content.WriteString(`<table class="w-full border-collapse bg-tokyo-night-bg-light rounded-lg overflow-hidden">`)
 	content.WriteString(`<thead><tr class="bg-tokyo-night-bg-dark"><th class="px-4 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border">Round</th>`)
 	for _, team := range teams {
