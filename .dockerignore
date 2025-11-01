@@ -6,7 +6,6 @@
 # Build artifacts
 draft-board
 main
-/seed
 *.exe
 *.dll
 *.so
