@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -18,7 +23,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing database: %v", err)
+		}
+	}()
 
 	// Initialize repositories
 	draftRepo := repository.NewDraftRepository(db)
@@ -86,9 +95,63 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("Server starting on port %s", port)
-	if err := http.ListenAndServe(":"+port, r); err != nil {
-		log.Fatalf("Server failed: %v", err)
+	// Create HTTP server
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: r,
 	}
-}
 
+	// Channel to track server errors
+	serverErr := make(chan error, 1)
+
+	// Start server in a goroutine
+	go func() {
+		log.Printf("Server starting on port %s", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			serverErr <- err
+		} else {
+			serverErr <- nil
+		}
+	}()
+
+	// Wait for interrupt signal or server error
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case sig := <-quit:
+		log.Printf("Received signal: %v", sig)
+	case err := <-serverErr:
+		if err != nil {
+			log.Printf("Server error: %v", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	log.Println("Shutting down server...")
+
+	// Create a context with timeout for graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Shutdown the server
+	shutdownErr := srv.Shutdown(ctx)
+	if shutdownErr != nil {
+		if errors.Is(shutdownErr, context.DeadlineExceeded) {
+			log.Println("Shutdown timeout exceeded, forcing server close...")
+			// Force close the server if graceful shutdown timed out
+			if err := srv.Close(); err != nil && err != http.ErrServerClosed {
+				log.Printf("Error force closing server: %v", err)
+			}
+		} else {
+			log.Printf("Server shutdown error: %v", shutdownErr)
+		}
+	} else {
+		log.Println("Server exited gracefully")
+	}
+
+	// Database will be closed by defer db.Close() above
+	log.Println("Shutdown complete")
+	// main() returns normally, which exits with code 0
+}

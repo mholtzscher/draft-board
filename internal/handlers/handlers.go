@@ -71,6 +71,33 @@ func (h *Handler) broadcastEvent(draftID int, event SSEEvent) {
 	}
 }
 
+func getPositionBadge(position string) string {
+	if position == "" {
+		return "-"
+	}
+
+	// Map positions to color classes
+	positionColors := map[string]string{
+		"QB":   "bg-blue-500/20 text-blue-300 border-blue-500/50",
+		"RB":   "bg-orange-500/20 text-orange-300 border-orange-500/50",
+		"WR":   "bg-green-500/20 text-green-300 border-green-500/50",
+		"TE":   "bg-purple-500/20 text-purple-300 border-purple-500/50",
+		"K":    "bg-yellow-500/20 text-yellow-300 border-yellow-500/50",
+		"D/ST": "bg-gray-500/20 text-gray-300 border-gray-500/50",
+		"DL":   "bg-indigo-500/20 text-indigo-300 border-indigo-500/50",
+		"LB":   "bg-blue-600/20 text-blue-300 border-blue-600/50",
+		"DB":   "bg-emerald-500/20 text-emerald-300 border-emerald-500/50",
+	}
+
+	colorClass := positionColors[position]
+	if colorClass == "" {
+		// Default color for unknown positions
+		colorClass = "bg-gray-500/20 text-gray-300 border-gray-500/50"
+	}
+
+	return fmt.Sprintf(`<span class="px-2 py-1 rounded text-xs font-semibold border %s">%s</span>`, colorClass, position)
+}
+
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	drafts, err := h.draftRepo.List()
 	if err != nil {
@@ -665,54 +692,77 @@ func (h *Handler) GetDraftBoard(w http.ResponseWriter, r *http.Request) {
 		`, id))
 	}
 
-	// Draft board grid
+	// Draft board log
 	content.WriteString(`<div class="overflow-x-auto mb-8" id="draft-board">`)
 	content.WriteString(`<table class="w-full border-collapse bg-tokyo-night-bg-light rounded-lg overflow-hidden">`)
-	content.WriteString(`<thead><tr class="bg-tokyo-night-bg-dark"><th class="px-4 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border">Round</th>`)
-	for _, team := range teams {
-		content.WriteString(fmt.Sprintf(`<th class="px-4 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border">%s</th>`, team.TeamName))
-	}
-	content.WriteString(`</tr></thead><tbody>`)
+	content.WriteString(`<thead><tr class="bg-tokyo-night-bg-dark">
+		<th class="px-2 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border w-16">Round</th>
+		<th class="px-2 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border w-16">Pick</th>
+		<th class="px-4 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border">Team</th>
+		<th class="px-4 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border">Player</th>
+		<th class="px-4 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border">Position</th>
+		<th class="px-4 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border">NFL Team</th>
+	</tr></thead><tbody>`)
 
-	maxRound := draft.MaxRounds
-	if len(picks) > 0 {
-		lastRound := picks[len(picks)-1].Round
-		if lastRound > maxRound {
-			maxRound = lastRound
-		}
-	}
-
-	pickMap := make(map[int]map[int]*models.Pick)
+	// Create map of picks by overall pick number
+	pickMap := make(map[int]*models.Pick)
 	for i := range picks {
 		pick := &picks[i]
-		if pickMap[pick.Round] == nil {
-			pickMap[pick.Round] = make(map[int]*models.Pick)
-		}
-		pickMap[pick.Round][pick.TeamID] = pick
+		pickMap[pick.OverallPick] = pick
 	}
 
-	for round := 1; round <= maxRound; round++ {
-		isCurrentRound := snake.CalculateRound(currentPick, draft.NumTeams) == round
-		rowClass := ""
-		if isCurrentRound {
-			rowClass = "bg-tokyo-night-accent/10"
+	// Create snake teams for calculations
+	snakeTeams := make([]snake.Team, len(teams))
+	teamMap := make(map[int]*models.Team)
+	for i, t := range teams {
+		snakeTeams[i] = snake.Team{
+			ID:            t.ID,
+			DraftPosition: t.DraftPosition,
 		}
-		content.WriteString(fmt.Sprintf(`<tr class="%s">`, rowClass))
-		content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 font-medium text-tokyo-night-fg border-b border-tokyo-night-border">Round %d</td>`, round))
-		for _, team := range teams {
-			if pick, ok := pickMap[round][team.ID]; ok {
-				player, _ := h.playerRepo.GetByID(pick.PlayerID)
-				if player != nil {
-					content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 border-b border-tokyo-night-border">
-						<div class="font-medium text-tokyo-night-fg">%s</div>
-						<div class="text-sm text-tokyo-night-fg-dim">%s - %s</div>
-					</td>`, player.Name, player.Position, player.Team))
-				} else {
-					content.WriteString(`<td class="px-4 py-2 border-b border-tokyo-night-border text-tokyo-night-fg-dim">-</td>`)
-				}
-			} else {
-				content.WriteString(`<td class="px-4 py-2 border-b border-tokyo-night-border text-tokyo-night-fg-dim">-</td>`)
+		teamMap[t.ID] = &teams[i]
+	}
+
+	// Generate all picks for the draft
+	totalPicks := draft.MaxRounds * draft.NumTeams
+	for pickNum := 1; pickNum <= totalPicks; pickNum++ {
+		round := snake.CalculateRound(pickNum, draft.NumTeams)
+		isCurrentPick := pickNum == currentPick
+		
+		rowClass := ""
+		if isCurrentPick {
+			rowClass = "bg-tokyo-night-accent/20"
+		}
+
+		// Determine which team should pick at this slot
+		var teamName string
+		if team, err := snake.CalculateCurrentTeam(pickNum, draft.NumTeams, snakeTeams); err == nil {
+			if t, ok := teamMap[team.ID]; ok {
+				teamName = t.TeamName
 			}
+		}
+
+		content.WriteString(fmt.Sprintf(`<tr class="%s">`, rowClass))
+		content.WriteString(fmt.Sprintf(`<td class="px-2 py-2 font-medium text-tokyo-night-fg border-b border-tokyo-night-border w-16">%d</td>`, round))
+		content.WriteString(fmt.Sprintf(`<td class="px-2 py-2 text-tokyo-night-fg border-b border-tokyo-night-border w-16">%d</td>`, pickNum))
+		content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 text-tokyo-night-fg border-b border-tokyo-night-border">%s</td>`, teamName))
+
+		// Check if there's a pick for this slot
+		if pick, ok := pickMap[pickNum]; ok {
+			player, _ := h.playerRepo.GetByID(pick.PlayerID)
+			if player != nil {
+				content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 font-medium text-tokyo-night-fg border-b border-tokyo-night-border">%s</td>`, player.Name))
+				content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 border-b border-tokyo-night-border">%s</td>`, getPositionBadge(player.Position)))
+				content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">%s</td>`, player.Team))
+			} else {
+				content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
+				content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
+				content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
+			}
+		} else {
+			// Empty slot
+			content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
+			content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
+			content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
 		}
 		content.WriteString(`</tr>`)
 	}
