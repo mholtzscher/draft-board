@@ -19,15 +19,23 @@ docker-compose down
 
 The application will be available at http://localhost:8080
 
-### Seed Player Data in Docker
+### Using Pre-built Images
+
+GitHub Actions automatically builds and publishes Docker images to GitHub Container Registry:
 
 ```bash
-# Copy CSV file and seed
-docker cp data/sample-players.csv draft-board:/tmp/players.csv
-docker exec draft-board /app/seed -file /tmp/players.csv
+# Login to GitHub Container Registry
+echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+
+# Pull the latest image
+docker pull ghcr.io/vibes/draft-board:latest
+
+# Run the container
+docker run -d -p 8080:8080 ghcr.io/vibes/draft-board:latest
 ```
 
 See `docs/DOCKER.md` for detailed Docker deployment instructions.
+See `docs/GITHUB_ACTIONS.md` for GitHub Actions workflow details.
 
 ## Quick Start
 
