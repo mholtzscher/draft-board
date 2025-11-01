@@ -13,9 +13,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application and seed tool
+# Build the application
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o draft-board ./cmd/server/main.go
-RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o seed ./cmd/seed/main.go
 
 # Final stage
 FROM alpine:latest
@@ -25,9 +24,8 @@ WORKDIR /app
 # Install runtime dependencies for SQLite
 RUN apk add --no-cache ca-certificates sqlite
 
-# Copy binaries from builder
+# Copy binary from builder
 COPY --from=builder /build/draft-board .
-COPY --from=builder /build/seed .
 
 # Copy static files and templates
 COPY --from=builder /build/web ./web
