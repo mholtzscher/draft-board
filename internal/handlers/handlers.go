@@ -699,7 +699,7 @@ func (h *Handler) GetDraftBoard(w http.ResponseWriter, r *http.Request) {
 		<th class="px-2 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border w-16">Round</th>
 		<th class="px-2 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border w-16">Pick</th>
 		<th class="px-4 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border">Team</th>
-		<th class="px-4 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border">Player</th>
+		<th class="px-4 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border w-64">Player</th>
 		<th class="px-4 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border">Position</th>
 		<th class="px-4 py-3 text-left font-semibold text-tokyo-night-fg border-b border-tokyo-night-border">NFL Team</th>
 	</tr></thead><tbody>`)
@@ -729,8 +729,10 @@ func (h *Handler) GetDraftBoard(w http.ResponseWriter, r *http.Request) {
 		isCurrentPick := pickNum == currentPick
 		
 		rowClass := ""
+		rowID := ""
 		if isCurrentPick {
 			rowClass = "bg-tokyo-night-accent/20"
+			rowID = ` id="active-pick-row"`
 		}
 
 		// Determine which team should pick at this slot
@@ -741,7 +743,7 @@ func (h *Handler) GetDraftBoard(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		content.WriteString(fmt.Sprintf(`<tr class="%s">`, rowClass))
+		content.WriteString(fmt.Sprintf(`<tr class="%s"%s>`, rowClass, rowID))
 		content.WriteString(fmt.Sprintf(`<td class="px-2 py-2 font-medium text-tokyo-night-fg border-b border-tokyo-night-border w-16">%d</td>`, round))
 		content.WriteString(fmt.Sprintf(`<td class="px-2 py-2 text-tokyo-night-fg border-b border-tokyo-night-border w-16">%d</td>`, pickNum))
 		content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 text-tokyo-night-fg border-b border-tokyo-night-border">%s</td>`, teamName))
@@ -750,7 +752,7 @@ func (h *Handler) GetDraftBoard(w http.ResponseWriter, r *http.Request) {
 		if pick, ok := pickMap[pickNum]; ok {
 			player, _ := h.playerRepo.GetByID(pick.PlayerID)
 			if player != nil {
-				content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 font-medium text-tokyo-night-fg border-b border-tokyo-night-border">%s</td>`, player.Name))
+				content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 font-medium text-tokyo-night-fg border-b border-tokyo-night-border w-64">%s</td>`, player.Name))
 				content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 border-b border-tokyo-night-border">%s</td>`, getPositionBadge(player.Position)))
 				content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">%s</td>`, player.Team))
 			} else {
@@ -759,14 +761,240 @@ func (h *Handler) GetDraftBoard(w http.ResponseWriter, r *http.Request) {
 				content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
 			}
 		} else {
-			// Empty slot
-			content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
-			content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
-			content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
+			// Empty slot - add search input if this is the current pick
+			if isCurrentPick && draft.CanMakePicks() {
+				content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 border-b border-tokyo-night-border w-64">
+					<div class="flex gap-2 items-center">
+						<div class="relative flex-1" id="quick-search-container-%d">
+							<input type="text" 
+								id="quick-search-%d" 
+								placeholder="Search player..." 
+								autocomplete="off"
+								class="w-full px-3 py-2 bg-tokyo-night-bg border border-tokyo-night-accent rounded-lg text-tokyo-night-fg focus:outline-none focus:ring-2 focus:ring-tokyo-night-accent"
+								data-draft-id="%d">
+							<div id="quick-search-results-%d" class="absolute z-50 w-full mt-1 bg-tokyo-night-bg-light border border-tokyo-night-border rounded-lg shadow-lg max-h-64 overflow-y-auto hidden"></div>
+						</div>
+						<div class="h-6 w-px bg-tokyo-night-border"></div>
+						<a href="/draft/%d/players" class="px-4 py-2 bg-tokyo-night-accent hover:bg-tokyo-night-accent-hover text-white rounded-lg font-semibold text-sm whitespace-nowrap transition-colors flex items-center">
+							All
+						</a>
+					</div>
+				</td>
+				<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>
+				<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`, pickNum, pickNum, id, pickNum, id))
+			} else {
+				content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
+				content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
+				content.WriteString(`<td class="px-4 py-2 text-tokyo-night-fg-dim border-b border-tokyo-night-border">-</td>`)
+			}
 		}
 		content.WriteString(`</tr>`)
 	}
 	content.WriteString(`</tbody></table></div>`)
+
+	// Scroll to active pick row on page load
+	if draft.IsActive() || draft.IsPaused() {
+		content.WriteString(`
+			<script>
+				(function() {
+					function scrollToActivePick() {
+						const activeRow = document.getElementById('active-pick-row');
+						if (activeRow) {
+							// Scroll the row into view with some offset from the top
+							activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+						}
+					}
+					
+					// Try scrolling immediately if DOM is ready
+					if (document.readyState === 'loading') {
+						document.addEventListener('DOMContentLoaded', scrollToActivePick);
+					} else {
+						// Small delay to ensure table is fully rendered
+						setTimeout(scrollToActivePick, 100);
+					}
+				})();
+			</script>
+		`)
+	}
+
+	// Quick search script for active row (placed after table so elements exist)
+	if draft.IsActive() || draft.IsPaused() {
+		content.WriteString(fmt.Sprintf(`
+			<script>
+				(function() {
+					const draftId = %d;
+					let searchTimeout = null;
+					
+					function setupQuickSearch(pickNum) {
+						const searchInput = document.getElementById('quick-search-' + pickNum);
+						const resultsDiv = document.getElementById('quick-search-results-' + pickNum);
+						
+						if (!searchInput || !resultsDiv) {
+							console.log('Quick search elements not found for pick', pickNum);
+							return;
+						}
+						
+						console.log('Setting up quick search for pick', pickNum);
+						
+						let selectedIndex = -1;
+						let currentResults = [];
+						
+						function highlightResult(index) {
+							const results = resultsDiv.querySelectorAll('.quick-search-result');
+							results.forEach(function(item, i) {
+								if (i === index) {
+									item.classList.add('bg-tokyo-night-accent/20');
+									item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+								} else {
+									item.classList.remove('bg-tokyo-night-accent/20');
+								}
+							});
+						}
+						
+						function selectResult(index) {
+							if (index >= 0 && index < currentResults.length) {
+								const playerId = currentResults[index].id;
+								draftPlayer(playerId, pickNum);
+							}
+						}
+						
+						searchInput.addEventListener('input', function(e) {
+							const query = e.target.value.trim();
+							
+							clearTimeout(searchTimeout);
+							selectedIndex = -1;
+							
+							if (query.length < 2) {
+								resultsDiv.classList.add('hidden');
+								resultsDiv.innerHTML = '';
+								currentResults = [];
+								return;
+							}
+							
+							console.log('Searching for:', query);
+							
+							searchTimeout = setTimeout(function() {
+								const url = '/draft/' + draftId + '/players/search?q=' + encodeURIComponent(query);
+								console.log('Fetching from:', url);
+								
+								fetch(url)
+									.then(response => {
+										console.log('Response status:', response.status);
+										if (!response.ok) {
+											throw new Error('HTTP error! status: ' + response.status);
+										}
+										return response.json();
+									})
+									.then(players => {
+										console.log('Received players:', players);
+										currentResults = players;
+										
+										if (players.length === 0) {
+											resultsDiv.innerHTML = '<div class="px-4 py-2 text-tokyo-night-fg-dim text-sm">No players found</div>';
+											resultsDiv.classList.remove('hidden');
+											return;
+										}
+										
+										let html = '';
+										players.forEach(function(player, index) {
+											html += '<div class="px-4 py-2 hover:bg-tokyo-night-bg-dark cursor-pointer border-b border-tokyo-night-border last:border-b-0 quick-search-result" data-player-id="' + player.id + '" data-player-name="' + player.name + '" data-index="' + index + '">';
+											html += '<div class="flex items-center justify-between">';
+											html += '<div>';
+											html += '<div class="font-medium text-tokyo-night-fg">' + player.name + '</div>';
+											html += '<div class="text-sm text-tokyo-night-fg-dim">' + player.position + ' - ' + player.team + '</div>';
+											html += '</div>';
+											html += '<div class="text-sm text-tokyo-night-fg-dim">#' + player.rank + '</div>';
+											html += '</div>';
+											html += '</div>';
+										});
+										resultsDiv.innerHTML = html;
+										resultsDiv.classList.remove('hidden');
+										
+										// Add click handlers
+										resultsDiv.querySelectorAll('.quick-search-result').forEach(function(item) {
+											item.addEventListener('click', function() {
+												const playerId = this.getAttribute('data-player-id');
+												draftPlayer(playerId, pickNum);
+											});
+										});
+									})
+									.catch(err => {
+										console.error('Search error:', err);
+										resultsDiv.innerHTML = '<div class="px-4 py-2 text-tokyo-night-error text-sm">Error searching players</div>';
+										resultsDiv.classList.remove('hidden');
+									});
+							}, 300);
+						});
+						
+						searchInput.addEventListener('keydown', function(e) {
+							if (e.key === 'Escape') {
+								resultsDiv.classList.add('hidden');
+								searchInput.blur();
+								selectedIndex = -1;
+							} else if (e.key === 'ArrowDown') {
+								e.preventDefault();
+								if (currentResults.length > 0) {
+									selectedIndex = Math.min(selectedIndex + 1, currentResults.length - 1);
+									highlightResult(selectedIndex);
+								}
+							} else if (e.key === 'ArrowUp') {
+								e.preventDefault();
+								if (selectedIndex > 0) {
+									selectedIndex--;
+									highlightResult(selectedIndex);
+								} else {
+									selectedIndex = -1;
+									resultsDiv.querySelectorAll('.quick-search-result').forEach(function(item) {
+										item.classList.remove('bg-tokyo-night-accent/20');
+									});
+								}
+							} else if (e.key === 'Enter') {
+								e.preventDefault();
+								if (selectedIndex >= 0) {
+									selectResult(selectedIndex);
+								} else if (currentResults.length > 0) {
+									// Select first result if none selected
+									selectResult(0);
+								}
+							}
+						});
+						
+						// Close dropdown when clicking outside
+						document.addEventListener('click', function(e) {
+							const container = document.getElementById('quick-search-container-' + pickNum);
+							if (container && !container.contains(e.target)) {
+								resultsDiv.classList.add('hidden');
+								selectedIndex = -1;
+							}
+						});
+					}
+					
+					function draftPlayer(playerId, pickNum) {
+						const form = document.createElement('form');
+						form.method = 'POST';
+						form.action = '/draft/' + draftId + '/pick';
+						
+						const input = document.createElement('input');
+						input.type = 'hidden';
+						input.name = 'player_id';
+						input.value = playerId;
+						
+						form.appendChild(input);
+						document.body.appendChild(form);
+						form.submit();
+					}
+					
+					// Setup search for current pick
+					const currentPickInput = document.getElementById('quick-search-' + %d);
+					if (currentPickInput) {
+						setupQuickSearch(%d);
+					} else {
+						console.log('Quick search input not found for pick', %d);
+					}
+				})();
+			</script>
+		`, id, currentPick, currentPick, currentPick))
+	}
 
 	// Navigation links
 	content.WriteString(`
@@ -1021,6 +1249,68 @@ func (h *Handler) GetAvailablePlayers(w http.ResponseWriter, r *http.Request) {
 
 	content.WriteString(`</tbody></table></div></div>`)
 	renderTemplate(w, content.String(), "Available Players")
+}
+
+func (h *Handler) SearchPlayersJSON(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid draft ID", http.StatusBadRequest)
+		return
+	}
+
+	draft, err := h.draftRepo.GetByID(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	search := r.URL.Query().Get("q")
+	if search == "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]interface{}{})
+		return
+	}
+
+	filters := repository.PlayerFilters{
+		Search:        search,
+		DraftType:     draft.DraftType,
+		ScoringFormat: draft.ScoringFormat,
+		IncludeDrafted: false,
+		Limit:         10,
+	}
+
+	players, err := h.playerRepo.GetAvailable(id, filters)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	type PlayerResult struct {
+		ID       int    `json:"id"`
+		Name     string `json:"name"`
+		Team     string `json:"team"`
+		Position string `json:"position"`
+		Rank     string `json:"rank"`
+	}
+
+	results := make([]PlayerResult, 0, len(players))
+	for _, player := range players {
+		rank := "-"
+		if r := player.GetADPRank(draft.DraftType, draft.ScoringFormat); r != nil {
+			rank = fmt.Sprintf("%d", *r)
+		}
+		results = append(results, PlayerResult{
+			ID:       player.ID,
+			Name:     player.Name,
+			Team:     player.Team,
+			Position: player.Position,
+			Rank:     rank,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
 }
 
 func (h *Handler) MakePick(w http.ResponseWriter, r *http.Request) {

@@ -65,6 +65,7 @@ func main() {
 	r.Get("/draft/{id}", h.GetDraftBoard)
 	r.Get("/draft/{id}/big-board", h.GetBigBoard)
 	r.Get("/draft/{id}/players", h.GetAvailablePlayers)
+	r.Get("/draft/{id}/players/search", h.SearchPlayersJSON)
 	r.Post("/draft/{id}/pick", h.MakePick)
 	r.Post("/draft/{id}/undo", h.UndoPick)
 	r.Post("/draft/{id}/trade", h.TradePick)
