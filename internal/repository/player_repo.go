@@ -36,9 +36,14 @@ func (r *PlayerRepository) GetByID(id int) (*models.Player, error) {
 func (r *PlayerRepository) GetAvailable(draftID int, filters PlayerFilters) ([]*models.Player, error) {
 	query := `
 		SELECT p.* FROM players p
-		WHERE p.id NOT IN (SELECT player_id FROM picks WHERE draft_id = ?)
 	`
-	args := []interface{}{draftID}
+	args := []interface{}{}
+	whereClause := ""
+
+	if !filters.IncludeDrafted {
+		whereClause = " WHERE p.id NOT IN (SELECT player_id FROM picks WHERE draft_id = ?)"
+		args = append(args, draftID)
+	}
 
 	if len(filters.Positions) > 0 {
 		placeholders := make([]string, len(filters.Positions))
@@ -46,14 +51,24 @@ func (r *PlayerRepository) GetAvailable(draftID int, filters PlayerFilters) ([]*
 			placeholders[i] = "?"
 			args = append(args, pos)
 		}
-		query += fmt.Sprintf(" AND p.position IN (%s)", strings.Join(placeholders, ","))
+		if whereClause == "" {
+			whereClause = fmt.Sprintf(" WHERE p.position IN (%s)", strings.Join(placeholders, ","))
+		} else {
+			whereClause += fmt.Sprintf(" AND p.position IN (%s)", strings.Join(placeholders, ","))
+		}
 	}
 
 	if filters.Search != "" {
-		query += " AND (p.name LIKE ? OR p.team LIKE ?)"
 		searchPattern := "%" + filters.Search + "%"
+		if whereClause == "" {
+			whereClause = " WHERE (p.name LIKE ? OR p.team LIKE ?)"
+		} else {
+			whereClause += " AND (p.name LIKE ? OR p.team LIKE ?)"
+		}
 		args = append(args, searchPattern, searchPattern)
 	}
+
+	query += whereClause
 
 	// Order by rank based on draft type and scoring format
 	// SQLite doesn't support NULLS LAST, so we use COALESCE to handle NULLs
@@ -118,10 +133,11 @@ func (r *PlayerRepository) Create(player *models.Player) error {
 }
 
 type PlayerFilters struct {
-	Positions    []string
-	Search       string
-	DraftType    string
-	ScoringFormat string
-	Limit        int
+	Positions      []string
+	Search         string
+	DraftType      string
+	ScoringFormat  string
+	IncludeDrafted bool
+	Limit          int
 }
 

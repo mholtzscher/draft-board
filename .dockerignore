@@ -1,0 +1,59 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Build artifacts
+draft-board
+main
+seed
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Database files (will be created in container)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Logs
+*.log
+logs
+
+# Documentation (not needed in container)
+docs
+files
+README.md
+
+# Justfile (not needed in container)
+justfile
+
+# Docker files (not needed in container)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Test files
+*_test.go
+testdata
+
+# Coverage
+coverage.out
+coverage.html
+

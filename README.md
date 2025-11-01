@@ -2,6 +2,33 @@
 
 A modern web application for managing offline fantasy football drafts.
 
+## Docker Deployment
+
+### Quick Start with Docker Compose
+
+```bash
+# Build and start
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop
+docker-compose down
+```
+
+The application will be available at http://localhost:8080
+
+### Seed Player Data in Docker
+
+```bash
+# Copy CSV file and seed
+docker cp data/sample-players.csv draft-board:/tmp/players.csv
+docker exec draft-board /app/seed -file /tmp/players.csv
+```
+
+See `docs/DOCKER.md` for detailed Docker deployment instructions.
+
 ## Quick Start
 
 1. Build the server:

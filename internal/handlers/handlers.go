@@ -813,19 +813,36 @@ func (h *Handler) GetAvailablePlayers(w http.ResponseWriter, r *http.Request) {
 
 	positions := r.URL.Query()["position"]
 	search := r.URL.Query().Get("search")
+	includeDrafted := r.URL.Query().Get("show_drafted") == "on"
 
 	filters := repository.PlayerFilters{
-		Positions:     positions,
-		Search:        search,
-		DraftType:     draft.DraftType,
-		ScoringFormat: draft.ScoringFormat,
-		Limit:         100,
+		Positions:      positions,
+		Search:         search,
+		DraftType:      draft.DraftType,
+		ScoringFormat:  draft.ScoringFormat,
+		IncludeDrafted: includeDrafted,
+		Limit:          100,
 	}
 
 	players, err := h.playerRepo.GetAvailable(id, filters)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Get drafted player IDs to mark them
+	draftedPlayerIDs := make(map[int]bool)
+	if includeDrafted {
+		picks, _ := h.pickRepo.GetByDraft(id)
+		for _, pick := range picks {
+			draftedPlayerIDs[pick.PlayerID] = true
+		}
+	}
+
+	// Build set of selected positions for checked state
+	selectedPositions := make(map[string]bool)
+	for _, pos := range positions {
+		selectedPositions[pos] = true
 	}
 
 	var content strings.Builder
@@ -835,9 +852,52 @@ func (h *Handler) GetAvailablePlayers(w http.ResponseWriter, r *http.Request) {
 			<h1 class="text-4xl font-bold mb-2 text-tokyo-night-accent">Available Players</h1>
 		</div>
 		<div class="mb-6">
-			<form method="GET" action="/draft/` + fmt.Sprintf("%d", id) + `/players" class="flex gap-4">
-				<input type="text" name="search" placeholder="Search players..." value="` + search + `" 
-					class="flex-1 px-4 py-2 bg-tokyo-night-bg-light border border-tokyo-night-border rounded-lg text-tokyo-night-fg focus:outline-none focus:border-tokyo-night-accent">
+			<form method="GET" action="/draft/` + fmt.Sprintf("%d", id) + `/players" id="filter-form">
+				<div class="mb-4">
+					<input type="text" name="search" placeholder="Search players..." value="` + search + `" 
+						class="w-full px-4 py-2 bg-tokyo-night-bg-light border border-tokyo-night-border rounded-lg text-tokyo-night-fg focus:outline-none focus:border-tokyo-night-accent">
+				</div>
+				<div class="mb-4">
+					<label class="block text-sm font-medium mb-2 text-tokyo-night-fg">Filter by Position:</label>
+					<div class="flex flex-wrap gap-2">
+	`)
+
+	allPositions := []string{"QB", "RB", "WR", "TE", "K", "D/ST"}
+	for _, pos := range allPositions {
+		checked := ""
+		if selectedPositions[pos] {
+			checked = "checked"
+		}
+		content.WriteString(fmt.Sprintf(`
+			<label class="inline-flex items-center px-3 py-2 rounded-lg border cursor-pointer transition-colors %s">
+				<input type="checkbox" name="position" value="%s" %s 
+					onchange="document.getElementById('filter-form').submit()"
+					class="sr-only">
+				<span class="text-sm font-medium">%s</span>
+			</label>
+		`, func() string {
+			if selectedPositions[pos] {
+				return "bg-tokyo-night-accent text-white border-tokyo-night-accent"
+			}
+			return "bg-tokyo-night-bg-light text-tokyo-night-fg border-tokyo-night-border hover:border-tokyo-night-accent"
+		}(), pos, checked, pos))
+	}
+
+	content.WriteString(`
+					</div>
+				</div>
+				<div class="mb-4">
+					<label class="inline-flex items-center cursor-pointer">
+						<input type="checkbox" name="show_drafted" value="on" ` + func() string {
+		if includeDrafted {
+			return "checked"
+		}
+		return ""
+	}() + ` onchange="document.getElementById('filter-form').submit()" 
+							class="w-4 h-4 text-tokyo-night-accent bg-tokyo-night-bg-light border-tokyo-night-border rounded focus:ring-tokyo-night-accent">
+						<span class="ml-2 text-sm text-tokyo-night-fg">Show drafted players</span>
+					</label>
+				</div>
 				<button type="submit" class="px-6 py-2 bg-tokyo-night-accent hover:bg-tokyo-night-accent-hover text-white rounded-lg font-semibold transition-colors">
 					Search
 				</button>
@@ -859,6 +919,7 @@ func (h *Handler) GetAvailablePlayers(w http.ResponseWriter, r *http.Request) {
 	`)
 
 	for _, player := range players {
+		isDrafted := draftedPlayerIDs[player.ID]
 		rank := "-"
 		if r := player.GetADPRank(draft.DraftType, draft.ScoringFormat); r != nil {
 			rank = fmt.Sprintf("%d", *r)
@@ -868,14 +929,25 @@ func (h *Handler) GetAvailablePlayers(w http.ResponseWriter, r *http.Request) {
 			bye = fmt.Sprintf("%d", *player.ByeWeek)
 		}
 
-		content.WriteString(`<tr class="hover:bg-tokyo-night-bg-dark transition-colors">`)
-		content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 border-b border-tokyo-night-border text-tokyo-night-fg">%s</td>`, rank))
-		content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 border-b border-tokyo-night-border font-medium text-tokyo-night-fg">%s</td>`, player.Name))
+		rowClass := "hover:bg-tokyo-night-bg-dark transition-colors"
+		textClass := "text-tokyo-night-fg"
+		if isDrafted {
+			rowClass = "opacity-50"
+			textClass = "text-tokyo-night-fg-dim"
+		}
+
+		content.WriteString(fmt.Sprintf(`<tr class="%s">`, rowClass))
+		content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 border-b border-tokyo-night-border %s">%s</td>`, textClass, rank))
+		content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 border-b border-tokyo-night-border font-medium %s">%s`, textClass, player.Name))
+		if isDrafted {
+			content.WriteString(` <span class="text-xs text-tokyo-night-fg-dim">(Drafted)</span>`)
+		}
+		content.WriteString(`</td>`)
 		content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 border-b border-tokyo-night-border text-tokyo-night-fg-dim">%s</td>`, player.Team))
 		content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 border-b border-tokyo-night-border text-tokyo-night-fg-dim">%s</td>`, player.Position))
 		content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 border-b border-tokyo-night-border text-tokyo-night-fg-dim">%s</td>`, bye))
 
-		if draft.CanMakePicks() {
+		if draft.CanMakePicks() && !isDrafted {
 			content.WriteString(fmt.Sprintf(`<td class="px-4 py-2 border-b border-tokyo-night-border">
 				<form method="POST" action="/draft/%d/pick" class="inline">
 					<input type="hidden" name="player_id" value="%d">
